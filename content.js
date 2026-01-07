@@ -195,8 +195,13 @@ function startup_stuff() {
   const hdr = document.createElement('div');
   hdr.className = 'gt-feed-header';
 
-  const cur = nav.querySelector('.selected')?.textContent.trim() || 'Feed';
-  if (!prof) {
+  const cur = nav?.querySelector('.selected')?.textContent.trim() || 'Feed';
+
+  if (cur === 'Gallery' || cur === 'Extensions' || prjs) {
+    m_col.classList.add('gt-feed-restrict')
+  }
+
+  if (!prof && !prj_shw) {
     hdr.innerHTML = `<h2>${cur}</h2>`;
     m_col.appendChild(hdr);
   }
@@ -413,33 +418,102 @@ function startup_stuff() {
       const card = sh_cont.querySelector('.project-show-card')
       if (card) {
         const art = document.createElement('article')
-        art.className = 'post project-show-post'
+        art.className = 'gt-proj-view'
 
         const bnr = card.querySelector('.project-card__banner-image')
         const title = card.querySelector('.project-show-card__title-text')?.textContent || ''
         const byline = card.querySelector('.project-show-card__byline')?.textContent || ''
         const desc = card.querySelector('.project-show-card__description')?.innerHTML || ''
-        const acts = card.querySelector('.project-show-card__actions')?.innerHTML || ''
+        const acts_el = card.querySelector('.project-show-card__actions')
+        let demo_url = ''
+        let repo_url = ''
+        let readme_url = ''
+        let acts_html = ''
+
+        if (acts_el) {
+          const btns = Array.from(acts_el.querySelectorAll('a, button'))
+          const d_btn = btns.find(b => b.textContent.toLowerCase().includes('demo'))
+          const r_btn = btns.find(b => b.textContent.toLowerCase().includes('repository'))
+          const rd_btn = btns.find(b => b.textContent.toLowerCase().includes('readme'))
+
+          if (d_btn) demo_url = d_btn.href || '#'
+          if (r_btn) repo_url = r_btn.href || '#'
+          if (rd_btn) readme_url = rd_btn.href || '#'
+
+          acts_html = btns.filter(b => {
+            const t = b.textContent.toLowerCase()
+            return !t.includes('demo') && !t.includes('repository') && !t.includes('readme')
+          }).map(b => b.outerHTML).join('')
+        }
+
         const adm = card.querySelector('.projects-show__admin-actions')?.innerHTML || ''
-        const stats = card.querySelector('.project-show-card__stats')?.innerHTML || ''
 
         let b_html = ''
         if (bnr) {
-          b_html = `<div class="gt-proj-banner"><img src="${bnr.src}"></div>`
+          b_html = `<div class="gt-banner-box"><img src="${bnr.src}"></div>`
         }
 
         art.innerHTML = `  
                 ${b_html}
-                <div class="gt-proj-content">
-                  <div class="gt-proj-header-row">
-                    <h1 class="gt-proj-title-big">${title}</h1>
-                    <div class="gt-proj-admin">${adm}</div>
+                
+                <div class="gt-readme-box">
+                  <div class="gt-readme-header">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="#8b949e"><path d="M2 4a1 1 0 100-2 1 1 0 000 2zm3.75-1.5a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5zm0 5a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5zm0 5a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5zM2 9a1 1 0 100-2 1 1 0 000 2zm0 5a1 1 0 100-2 1 1 0 000 2z"></path></svg>
+                    <span>README.md</span>
                   </div>
-                  <div class="gt-proj-byline">${byline}</div>      
-                  <div class="gt-proj-desc-full">${desc}</div>
-                  <div class="gt-proj-links">${acts}</div>
+                  <div class="gt-readme-body">
+                    <div class="gt-readme-content">loading readme content...</div>
+                  </div>
                 </div>
+                
+                <div class="gt-proj-links" style="margin-top: 16px;">${acts_html}</div>
               `
+
+        function md_parse(md) {
+          let h = md
+
+          h = h.replace(/```([\s\S]*?)```/g, '<pre class="gt-md-pre"><code>$1</code></pre>')
+          h = h.replace(/`([^`]+)`/g, '<code class="gt-md-code">$1</code>')
+
+          h = h.replace(/^# (.*$)/gim, '<h1>$1</h1>')
+          h = h.replace(/^## (.*$)/gim, '<h2>$1</h2>')
+          h = h.replace(/^### (.*$)/gim, '<h3>$1</h3>')
+          h = h.replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+          h = h.replace(/\*(.*)\*/gim, '<i>$1</i>')
+          h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>')
+          h = h.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>')
+          h = h.replace(/<\/ul>\s*<ul>/gim, '')
+
+          const lines = h.split('\n')
+          h = lines.map(l => {
+            if (!l.trim()) return ''
+            if (l.match(/^<(h1|h2|h3|ul|li|pre|a|b|i)/)) return l
+            return `<p>${l}</p>`
+          }).join('')
+
+          return h
+        }
+
+        if (readme_url) {
+          fetch(readme_url)
+            .then(r => r.text())
+            .then(txt => {
+              const el = art.querySelector('.gt-readme-content')
+              if (el) el.innerHTML = md_parse(txt)
+            })
+            .catch(e => {
+              const el = art.querySelector('.gt-readme-content')
+              if (el) el.innerHTML = 'error loding readme :('
+            })
+        }
+        else {
+          const el = art.querySelector('.gt-readme-content')
+          if (el) el.innerHTML = "This project doesn't have a README.md yet..."
+        }
+
+        art.dataset.demoUrl = demo_url
+        art.dataset.repoUrl = repo_url
+        art.dataset.adm = adm
 
 
         m_col.appendChild(art)
@@ -546,20 +620,84 @@ function startup_stuff() {
 
   else if (prj_shw) {
     const card = prj_shw.querySelector('.project-show-card')
-    const stats_src = card?.querySelector('.project-show-card__stats')?.innerHTML || ''
+    const byline = card?.querySelector('.project-show-card__byline')?.textContent || ''
+    const desc = card?.querySelector('.project-show-card__description')?.textContent || ''
+
+    const stats_src_el = card?.querySelector('.project-show-card__stats')
+    let stats_html = ''
+    if (stats_src_el) {
+      const filtered = Array.from(stats_src_el.querySelectorAll('.project-show-card__stat')).filter(s => {
+        const t = s.textContent.toLowerCase()
+        return !t.includes('follower') && !s.querySelector('span[style*="background-color"]')
+      })
+      stats_html = filtered.map(s => s.outerHTML).join('')
+    }
+
+    const d_url = m_col.querySelector('article')?.dataset.demoUrl || ''
+    const r_url = m_col.querySelector('article')?.dataset.repoUrl || ''
+    const adm_src = m_col.querySelector('article')?.dataset.adm || ''
+
+    let rel_html = ''
+    if (d_url) {
+      rel_html = `
+        <div class="gt-sidebar-section" style="border-top: 1px solid #30363d; padding-top: 16px; margin-top: 24px;">
+          <h3 style="color: #f0f6fc; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            Releases <span class="gt-rel-count">1</span>
+          </h3>
+          <div class="gt-rel-item" style="display: flex; gap: 10px;">
+            <svg class="gt-rel-icon" viewBox="0 0 16 16" width="18" height="18" fill="#3fb950" style="margin-top: 2px;"><path d="M1 7.775V2a1 1 0 0 1 1-1h5.775a1 1 0 0 1 .707.293l6.225 6.225a1 1 0 0 1 0 1.414l-5.59 5.59a1 1 0 0 1-1.414 0L1.293 8.482a1 1 0 0 1-.293-.707ZM4.5 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"></path></svg>
+            <div class="gt-rel-content">
+              <div style="font-weight: 600; font-size: 0.9rem;">
+                <a href="${d_url}" target="_blank" style="color: #f0f6fc; text-decoration: none;">Latest Demo</a>
+                <span class="gt-rel-tag">Latest</span>
+              </div>
+              <div style="color: #8b949e; font-size: 0.75rem; margin-top: 4px;">
+                v1.0.0
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    }
+
+    let gh_html = ''
+    if (r_url) {
+      gh_html = `
+        <div class="gt-sidebar-section" style="border-top: 1px solid #30363d; padding-top: 16px; margin-top: 24px;">
+          <h3 style="color: #f0f6fc; margin-bottom: 16px;">
+            Github Page
+          </h3>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="#8b949e"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 01-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 010 8c0-4.42 3.58-8 8-8Z"></path></svg>
+            <a href="${r_url}" target="_blank" style="color: #58a6ff; text-decoration: none; font-size: 0.9rem; font-weight: 500;">
+               View Repository
+            </a>
+          </div>
+        </div>
+       `
+    }
 
     r_side.innerHTML = `
         <div class="gt-sidebar-card">
-          <h3 style="color: #f0f6fc; margin-bottom: 12px;">About</h3>
-          <p style="color: #8b949e; font-size: 0.9rem; margin-bottom: 20px;">
-            This is a community project built in Flavortown. You can follow this project to get updates in your feed!
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="color: #f0f6fc; margin: 0;">About</h3>
+            <div class="gt-side-adm">${adm_src}</div>
+          </div>
+          <p style="color: #c9d1d9; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.5;">
+             ${desc}
           </p>
+          <div style="color: #8b949e; font-size: 0.85rem; margin-bottom: 20px;">
+             ${byline}
+          </div>
           
           <div class="gt-side-stats" style="margin-bottom:24px; display: flex; flex-direction: column; gap: 12px;">
-            ${stats_src}
+            ${stats_html}
           </div>
 
-          <div style="border-top:1px solid #30363d; padding-top:16px;">
+          ${rel_html}
+          ${gh_html}
+
+          <div style="border-top:1px solid #30363d; padding-top:16px; margin-top:24px;">
             <p style="font-size:0.8rem; color:#768390;">   
                Support the creator by leaving a like on their devlogs!    
             </p>   
@@ -579,9 +717,101 @@ function startup_stuff() {
 
 
 
-  if (!prj_shw) m_wrap.appendChild(l_side);
-  m_wrap.appendChild(m_col);
-  m_wrap.appendChild(r_side);
+  if (prj_shw) {
+    const card = prj_shw.querySelector('.project-show-card')
+    const title = card?.querySelector('.project-show-card__title-text')?.textContent || ''
+    const st_el = card?.querySelector('.project-show-card__badge') ||
+      card?.querySelector('.project-show-card__stat span[style*="background-color"]')
+    const status_pill = st_el ? `<span class="gt-status-pill-wrap" style="background:${st_el.style.backgroundColor || '#fbbf24'}">${st_el.textContent}</span>` : ''
+
+
+    prj_shw.querySelectorAll('[id*="modal"]').forEach(m => {
+      if (m.parentElement !== document.body) document.body.appendChild(m)
+    })
+
+    const stats_src = card?.querySelector('.project-show-card__stats')
+    let follow_src = ''
+    if (stats_src) {
+      const f = Array.from(stats_src.querySelectorAll('.project-show-card__stat')).find(s => s.textContent.includes('follower'))
+      if (f) {
+        const tid = f.getAttribute('data-modal-target-value') || f.closest('[data-modal-target-value]')?.getAttribute('data-modal-target-value') || ''
+        follow_src = `
+          <button class="gt-follower-trigger" onclick="const m = document.getElementById('${tid}'); if(m) m.style.display='flex'; else console.error('no modal ${tid}')" style="background:none; border:none; color:inherit; font:inherit; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            ${f.innerHTML}
+          </button>
+        `
+      }
+    }
+
+    const topNav = document.createElement('div')
+    topNav.className = 'gt-proj-top-nav'
+
+    let u_img = ''
+    let u_name = ''
+    let u_link = ''
+
+    const devlog = document.querySelector('.post--devlog')
+    if (devlog) {
+      const auth_a = devlog.querySelector('.post__author a')
+      if (auth_a) {
+        u_name = auth_a.textContent.trim()
+        u_link = auth_a.href
+      }
+      const auth_img = devlog.querySelector('.post__avatar img') || devlog.querySelector('img.post__avatar')
+      if (auth_img) {
+        u_img = auth_img.src
+      }
+    }
+
+
+    if (!u_name) {
+
+      const card = prj_shw.querySelector('.project-show-card')
+      const byline = card?.querySelector('.project-show-card__byline')?.textContent || ''
+      if (byline.includes('by')) {
+        u_name = byline.split('by')[1].trim()
+      }
+    }
+
+
+    const user_part_html = u_link
+      ? `<a href="${u_link}"><img class="gt-proj-nav-avatar" src="${u_img}"></a><a href="${u_link}" class="gt-proj-nav-user">${u_name}</a>`
+      : (u_name ? (u_img ? `<img class="gt-proj-nav-avatar" src="${u_img}"> <span class="gt-proj-nav-user">${u_name}</span>` : `<span class="gt-proj-nav-user">${u_name}</span>`) : '')
+
+    topNav.innerHTML = `
+        <div class="gt-proj-nav-container">
+          <div class="gt-proj-nav-left">
+            <span class="gt-proj-nav-name">${title}</span>
+            <span class="gt-proj-nav-badge">Public</span>
+          </div>
+          <div class="gt-proj-nav-right">
+            <div class="gt-proj-nav-status">
+               ${status_pill}
+            </div>
+            <div class="gt-proj-nav-stat-btn">
+               ${follow_src}
+            </div>
+          </div>
+        </div>
+      `
+
+    const megaWrap = document.createElement('div')
+    megaWrap.className = 'gt-proj-mega-wrap'
+
+    const contentRow = document.createElement('div')
+    contentRow.className = 'gt-proj-content-row'
+
+    megaWrap.appendChild(topNav)
+    contentRow.appendChild(m_col)
+    contentRow.appendChild(r_side)
+    megaWrap.appendChild(contentRow)
+
+    m_wrap.appendChild(megaWrap)
+  } else {
+    if (!prj_shw) m_wrap.appendChild(l_side);
+    m_wrap.appendChild(m_col);
+    m_wrap.appendChild(r_side);
+  }
 
   if (prof) {
     m_wrap.classList.add('gt-full-width');
