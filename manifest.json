@@ -3,7 +3,18 @@
     "name": "Flavortown Github thame",
     "version": "1.1",
     "description": "Github skin for flavortown | by BGtulk",
-    "permissions": [],
+    "permissions": [
+        "declarativeNetRequest"
+    ],
+    "declarative_net_request": {
+        "rule_resources": [
+            {
+                "id": "ruleset_1",
+                "enabled": true,
+                "path": "rules.json"
+            }
+        ]
+    },
     "content_scripts": [
         {
             "matches": [
